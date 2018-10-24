@@ -26,7 +26,7 @@ namespace RosSharp.RosBridgeClient
         public int Timeout = 10;
 
         public RosSocket RosSocket { get; private set; }
-        public enum Protocols { WebSocketSharp, WebSocketNET };
+        public enum Protocols { WebSocketSharp, WebSocketNET, WebSocketUWP };
         public Protocols Protocol;
         public string RosBridgeServerUrl = "ws://192.168.0.1:9090";
 
@@ -34,7 +34,11 @@ namespace RosSharp.RosBridgeClient
 
         public void Awake()
         {
+#if WINDOWS_UWP
+            ConnectAndWait();
+#else
             new Thread(ConnectAndWait).Start();
+#endif
         }
 
         private void ConnectAndWait()
@@ -44,7 +48,7 @@ namespace RosSharp.RosBridgeClient
             if (!isConnected.WaitOne(Timeout * 1000))
                 Debug.LogWarning("Failed to connect to RosBridge at: " + RosBridgeServerUrl);
         }
-        
+
         public static RosSocket ConnectToRos(Protocols protocolType, string serverUrl, EventHandler onConnected = null, EventHandler onClosed = null)
         {
             RosBridgeClient.Protocols.IProtocol protocol = GetProtocol(protocolType, serverUrl);
@@ -56,15 +60,27 @@ namespace RosSharp.RosBridgeClient
 
         private static RosBridgeClient.Protocols.IProtocol GetProtocol(Protocols protocol, string rosBridgeServerUrl)
         {
+
+#if WINDOWS_UWP
+            if (protocol != Protocols.WebSocketUWP)
+            {
+                Debug.Log("HoloLens only works with WebSocketUWP");
+            }
+            return new RosBridgeClient.Protocols.WebSocketUWPProtocol(rosBridgeServerUrl);
+#else
             switch (protocol)
             {
+                case Protocols.WebSocketNET:
+                    return new RosBridgeClient.Protocols.WebSocketNetProtocol(rosBridgeServerUrl);
                 case Protocols.WebSocketSharp:
                     return new RosBridgeClient.Protocols.WebSocketSharpProtocol(rosBridgeServerUrl);
-                case Protocols.WebSocketNET:
+                case Protocols.WebSocketUWP:
+                    Debug.Log("WebSocketUWP only works when deployed to HoloLens, defaulting to WebSocketNetProtocol");
                     return new RosBridgeClient.Protocols.WebSocketNetProtocol(rosBridgeServerUrl);
                 default:
                     return null;
             }
+#endif
         }
 
         private void OnApplicationQuit()
